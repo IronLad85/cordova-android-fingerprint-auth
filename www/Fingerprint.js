@@ -2,8 +2,8 @@
 var exec = require('cordova/exec');
 
 var Fingerprint = {
-  show : function(params, successCallback, errorCallback) {
-    cordova.exec(successCallback, errorCallback, "Fingerprint", "authenticate", [params])
+  listenForAuthentication : function(params, successCallback, errorCallback) {
+    cordova.exec(successCallback, errorCallback, "Fingerprint", "listenForAuthentication", [params])
   },
   isAvailable: function(successCallback, errorCallback) {
     cordova.exec(successCallback, errorCallback, "Fingerprint", "isAvailable", [{}])

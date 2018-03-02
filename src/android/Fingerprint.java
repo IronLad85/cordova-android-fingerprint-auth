@@ -138,7 +138,7 @@ public class Fingerprint extends CordovaPlugin {
 
         final JSONObject arg_object = args.getJSONObject(0);
 
-        if (action.equals("authenticate")) {
+        if (action.equals("listenForAuthentication")) {
             if (!arg_object.has("clientId") || !arg_object.has("clientSecret")) {
                 mPluginResult = new PluginResult(PluginResult.Status.ERROR);
                 mCallbackContext.error("Missing required parameters");
@@ -192,11 +192,9 @@ public class Fingerprint extends CordovaPlugin {
             return true;
         } else if (action.equals("isAvailable")) {
             if(isFingerprintAuthAvailable() && mFingerPrintManager.isHardwareDetected() && mFingerPrintManager.hasEnrolledFingerprints()){
-              mPluginResult = new PluginResult(PluginResult.Status.OK, "finger");
-              mCallbackContext.success("finger");
+              mCallbackContext.success("AVAILABLE");
             }else{
-              mPluginResult = new PluginResult(PluginResult.Status.ERROR);
-              mCallbackContext.error("Fingerprint authentication not ready");
+              mCallbackContext.error("NOT_AVAILABLE");
             }
             mCallbackContext.sendPluginResult(mPluginResult);
             return true;
