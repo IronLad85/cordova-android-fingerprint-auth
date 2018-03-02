@@ -1,21 +1,4 @@
-/*
- * Copyright (C) https://github.com/mjwheatley/cordova-plugin-android-fingerprint-auth
- * Modifications copyright (C) 2016 Niklas Merz
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License
- */
-
-package de.niklasmerz.cordova.fingerprint;
+package com.cordova.fingerprint;
 
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.CallbackContext;
@@ -49,6 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import android.os.CancellationSignal;
 import java.util.Locale;
 
 import javax.crypto.BadPaddingException;
@@ -59,6 +43,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 
 @TargetApi(23)
+
 public class Fingerprint extends CordovaPlugin {
 
     public static final String TAG = "Fingerprint";
@@ -68,34 +53,26 @@ public class Fingerprint extends CordovaPlugin {
     private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
 
     KeyguardManager mKeyguardManager;
-    FingerprintAuthenticationDialogFragment mFragment;
     public static KeyStore mKeyStore;
     public static KeyGenerator mKeyGenerator;
     public static Cipher mCipher;
     private FingerprintManager mFingerPrintManager;
+    private FingerprintManager.CryptoObject mCryptoObject;
+    private CancellationSignal mCancellationSignal;
+    private FingerprintCallback callbackHandler;
 
     public static CallbackContext mCallbackContext;
     public static PluginResult mPluginResult;
 
-    /**
-     * Alias for our key in the Android Key Store
-     */
+    // Alias for our key in the Android Key Store
     private static String mClientId;
-    /**
-     * Used to encrypt token
-     */
+    // Used to encrypt token
     private static String mClientSecret;
-
-    /**
-     * Options
-     */
+    // Options
     private static boolean mDisableBackup = false;
 
-    /**
-     * Constructor.
-     */
-    public Fingerprint() {
-    }
+    // Constructor.
+    public Fingerprint() {}
 
     /**
      * Sets the context of the Command. This can then be used to do things like
@@ -106,41 +83,37 @@ public class Fingerprint extends CordovaPlugin {
      */
 
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
-        super.initialize(cordova, webView);
-        Log.v(TAG, "Init Fingerprint");
-        packageName = cordova.getActivity().getApplicationContext().getPackageName();
-        mPluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
+      super.initialize(cordova, webView);
+      Log.v(TAG, "Init Fingerprint");
+      packageName = cordova.getActivity().getApplicationContext().getPackageName();
+      mPluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
 
-        if (android.os.Build.VERSION.SDK_INT < 23) {
-            return;
-        }
+      if (android.os.Build.VERSION.SDK_INT < 23) {
+        return;
+      }
 
-        mKeyguardManager = cordova.getActivity().getSystemService(KeyguardManager.class);
-        mFingerPrintManager = cordova.getActivity().getApplicationContext()
-                .getSystemService(FingerprintManager.class);
+      mKeyguardManager = cordova.getActivity().getSystemService(KeyguardManager.class);
+      mFingerPrintManager = cordova.getActivity().getApplicationContext().getSystemService(FingerprintManager.class);
 
-        try {
-            mKeyGenerator = KeyGenerator.getInstance(
-                    KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE);
-            mKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
+      try {
+        mKeyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE);
+        mKeyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
 
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Failed to get an instance of KeyGenerator", e);
-        } catch (NoSuchProviderException e) {
-            throw new RuntimeException("Failed to get an instance of KeyGenerator", e);
-        } catch (KeyStoreException e) {
-            throw new RuntimeException("Failed to get an instance of KeyStore", e);
-        }
+      } catch (NoSuchAlgorithmException e) {
+          throw new RuntimeException("Failed to get an instance of KeyGenerator", e);
+      } catch (NoSuchProviderException e) {
+          throw new RuntimeException("Failed to get an instance of KeyGenerator", e);
+      } catch (KeyStoreException e) {
+          throw new RuntimeException("Failed to get an instance of KeyStore", e);
+      }
 
-        try {
-            mCipher = Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/"
-                    + KeyProperties.BLOCK_MODE_CBC + "/"
-                    + KeyProperties.ENCRYPTION_PADDING_PKCS7);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Failed to get an instance of Cipher", e);
-        } catch (NoSuchPaddingException e) {
-            throw new RuntimeException("Failed to get an instance of Cipher", e);
-        }
+      try {
+          mCipher = Cipher.getInstance(KeyProperties.KEY_ALGORITHM_AES + "/"  + KeyProperties.BLOCK_MODE_CBC + "/" + KeyProperties.ENCRYPTION_PADDING_PKCS7);
+      } catch (NoSuchAlgorithmException e) {
+          throw new RuntimeException("Failed to get an instance of Cipher", e);
+      } catch (NoSuchPaddingException e) {
+          throw new RuntimeException("Failed to get an instance of Cipher", e);
+      }
     }
 
     /**
@@ -151,9 +124,8 @@ public class Fingerprint extends CordovaPlugin {
      * @param callbackContext The callback id used when calling back into JavaScript.
      * @return A PluginResult object with a status and message.
      */
-    public boolean execute(final String action,
-                           JSONArray args,
-                           CallbackContext callbackContext) throws JSONException {
+
+    public boolean execute(final String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         mCallbackContext = callbackContext;
         Log.v(TAG, "Fingerprint action: " + action);
         if (android.os.Build.VERSION.SDK_INT < 23) {
@@ -175,63 +147,38 @@ public class Fingerprint extends CordovaPlugin {
             }
             mClientId = arg_object.getString("clientId");
             mClientSecret = arg_object.getString("clientSecret");
+            mCancellationSignal = new CancellationSignal();
+            callbackHandler = new FingerprintCallback();
             if (arg_object.has("disableBackup")) {
                 mDisableBackup = arg_object.getBoolean("disableBackup");
             }
-            // Set language
-            Resources res = cordova.getActivity().getResources();
-            // Change locale settings in the app.
-            DisplayMetrics dm = res.getDisplayMetrics();
-            Configuration conf = res.getConfiguration();
-            //Do not change locale
-            res.updateConfiguration(conf, dm);
 
             if (isFingerprintAuthAvailable()) {
                 SecretKey key = getSecretKey();
                 boolean isCipherInit = true;
                 if (key == null) {
-                    if (createKey()) {
-                        key = getSecretKey();
-                    }
+                  if (createKey()) {
+                    key = getSecretKey();
+                  }
                 }
                 if (key != null && !initCipher()) {
-                    isCipherInit = false;
+                  isCipherInit = false;
                 }
                 if (key != null) {
-                    cordova.getActivity().runOnUiThread(new Runnable() {
-                        public void run() {
-                            // Set up the crypto object for later. The object will be authenticated by use
-                            // of the fingerprint.
-                            mFragment = new FingerprintAuthenticationDialogFragment();
-                            Bundle bundle = new Bundle();
-                            bundle.putBoolean("disableBackup", mDisableBackup);
-                            mFragment.setArguments(bundle);
+                  cordova.getActivity().runOnUiThread(new Runnable() {
+                    public void run() {
+                      // Set up the crypto object for later. The object will be authenticated by use of the fingerprint.
 
-                            if (initCipher()) {
-                                mFragment.setCancelable(false);
-                                // Show the fingerprint dialog. The user has the option to use the fingerprint with
-                                // crypto, or you can fall back to using a server-side verified password.
-                                mFragment.setCryptoObject(new FingerprintManager.CryptoObject(mCipher));
-                                mFragment.show(cordova.getActivity()
-                                        .getFragmentManager(), DIALOG_FRAGMENT_TAG);
-                            } else {
-                                if (!mDisableBackup) {
-                                    // This happens if the lock screen has been disabled or or a fingerprint got
-                                    // enrolled. Thus show the dialog to authenticate with their password
-                                    mFragment.setCryptoObject(new FingerprintManager
-                                            .CryptoObject(mCipher));
-                                    mFragment.setStage(FingerprintAuthenticationDialogFragment
-                                            .Stage.NEW_FINGERPRINT_ENROLLED);
-                                    mFragment.show(cordova.getActivity().getFragmentManager(),
-                                            DIALOG_FRAGMENT_TAG);
-                                } else {
-                                    mCallbackContext.error("Failed to init Cipher and backup disabled.");
-                                    mPluginResult = new PluginResult(PluginResult.Status.ERROR);
-                                    mCallbackContext.sendPluginResult(mPluginResult);
-                                }
-                            }
-                        }
-                    });
+                      if (initCipher()) {
+                        // Listen for the Fingerprint
+                        setCryptoObject(new FingerprintManager.CryptoObject(mCipher));
+                        mFingerPrintManager.authenticate(mCryptoObject, mCancellationSignal, 0 /* flags */, callbackHandler, null);
+                        mCallbackContext.sendPluginResult(mPluginResult);
+                      } else {
+                        mCallbackContext.error("Failed to init Cipher and backup disabled.");
+                      }
+                    }
+                  });
                     mPluginResult.setKeepCallback(true);
                 } else {
                     mCallbackContext.sendPluginResult(mPluginResult);
@@ -258,18 +205,46 @@ public class Fingerprint extends CordovaPlugin {
     }
 
     private boolean isFingerprintAuthAvailable() {
-        return mFingerPrintManager.isHardwareDetected()
-                && mFingerPrintManager.hasEnrolledFingerprints();
+      return mFingerPrintManager.isHardwareDetected() && mFingerPrintManager.hasEnrolledFingerprints();
     }
 
-    /**
-     * Initialize the {@link Cipher} instance with the created key in the {@link #createKey()}
-     * method.
-     *
-     * @return {@code true} if initialization is successful, {@code false} if the lock screen has
-     * been disabled or reset after the key was generated, or if a fingerprint got enrolled after
-     * the key was generated.
-     */
+    public static void onAuthenticationFailure(){
+      JSONObject resultJSON = new JSONObject();
+      try{
+        resultJSON.put("code", "NOT_RECOGNIZED");
+        resultJSON.put("message", "Fingerprint not recognized! Try again");
+        mPluginResult = new PluginResult(PluginResult.Status.OK, resultJSON);
+        mPluginResult.setKeepCallback(true);
+        mCallbackContext.sendPluginResult(mPluginResult);
+      }
+      catch(JSONException e){
+        mPluginResult = new PluginResult(PluginResult.Status.ERROR, "ERROR");
+        mPluginResult.setKeepCallback(true);
+        mCallbackContext.sendPluginResult(mPluginResult);
+      }
+    }
+
+
+    public static void onAuthenticationError(String errString){
+      JSONObject errorJSON = new JSONObject();
+      try{
+        errorJSON.put("code", "ERROR");
+        errorJSON.put("message", "Unexpected Error Occured!");
+        errorJSON.put("errorString", errString);
+        mPluginResult = new PluginResult(PluginResult.Status.OK, errorJSON);
+        mPluginResult.setKeepCallback(true);
+        mCallbackContext.sendPluginResult(mPluginResult);
+      }
+      catch(JSONException e){
+        mPluginResult = new PluginResult(PluginResult.Status.ERROR, "ERROR");
+        mPluginResult.setKeepCallback(true);
+        mCallbackContext.sendPluginResult(mPluginResult);
+      }
+    }
+
+    // Initialize the {@link Cipher} instance with the created key in the {@link #createKey()} method.
+    // @return {@code true} if initialization is successful, {@code false} if the lock screen has
+    // been disabled or reset after the key was generated, or if a fingerprint got enrolled after the key was generated.
     private static boolean initCipher() {
         boolean initCipher = false;
         String errorMessage = "";
@@ -280,7 +255,7 @@ public class Fingerprint extends CordovaPlugin {
             initCipher = true;
         } catch (InvalidKeyException e) {
             errorMessage = initCipherExceptionErrorPrefix + "InvalidKeyException: " + e.toString();
-            
+
         }
         if (!initCipher) {
             Log.e(TAG, errorMessage);
@@ -318,10 +293,8 @@ public class Fingerprint extends CordovaPlugin {
         return key;
     }
 
-    /**
-     * Creates a symmetric key in the Android Key Store which can only be used after the user has
-     * authenticated with fingerprint.
-     */
+    // Creates a symmetric key in the Android Key Store which can only be used after the user has authenticated with fingerprint.
+
     public static boolean createKey() {
         String errorMessage = "";
         String createKeyExceptionErrorPrefix = "Failed to create key: ";
@@ -333,15 +306,11 @@ public class Fingerprint extends CordovaPlugin {
             mKeyStore.load(null);
             // Set the alias of the entry in Android KeyStore where the key will appear
             // and the constrains (purposes) in the constructor of the Builder
-            mKeyGenerator.init(new KeyGenParameterSpec.Builder(mClientId,
-                    KeyProperties.PURPOSE_ENCRYPT |
-                            KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-                            // Require the user to authenticate with a fingerprint to authorize every use
-                            // of the key
-                    .setUserAuthenticationRequired(true)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-                    .build());
+            mKeyGenerator.init(new KeyGenParameterSpec.Builder(mClientId, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+              .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+              .setUserAuthenticationRequired(true)
+              .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+              .build());
             mKeyGenerator.generateKey();
             isKeyCreated = true;
         } catch (NoSuchAlgorithmException e) {
@@ -364,26 +333,15 @@ public class Fingerprint extends CordovaPlugin {
         return isKeyCreated;
     }
 
-    public static void onAuthenticated(boolean withFingerprint) {
+    public static void onAuthenticatedByFingerprint() {
         JSONObject resultJson = new JSONObject();
         String errorMessage = "";
         boolean createdResultJson = false;
         try {
-
-            if (withFingerprint) {
-                // If the user has authenticated with fingerprint, verify that using cryptography and
-                // then return the encrypted token
-                byte[] encrypted = tryEncrypt();
-                resultJson.put("withFingerprint", Base64.encodeToString(encrypted, 0 /* flags */));
-            } else {
-                // Authentication happened with backup password.
-                resultJson.put("withPassword", true);
-
-                // if failed to init cipher because of InvalidKeyException, create new key
-                if (!initCipher()) {
-                    createKey();
-                }
-            }
+            // If the user has authenticated with fingerprint, verify that using cryptography and then return the encrypted token
+            byte[] encrypted = tryEncrypt();
+            resultJson.put("code", "SUCCESSFUL");
+            resultJson.put("message", "Fingerprint successfully verified");
             createdResultJson = true;
         } catch (BadPaddingException e) {
             errorMessage = "Failed to encrypt the data with the generated key:" +
@@ -408,14 +366,16 @@ public class Fingerprint extends CordovaPlugin {
         mCallbackContext.sendPluginResult(mPluginResult);
     }
 
+    public void setCryptoObject(FingerprintManager.CryptoObject cryptoObject) {
+        mCryptoObject = cryptoObject;
+    }
+
     public static void onCancelled() {
         mCallbackContext.error("Cancelled");
     }
 
-    /**
-     * Tries to encrypt some data with the generated key in {@link #createKey} which is
-     * only works if the user has just authenticated via fingerprint.
-     */
+    // Tries to encrypt some data with the generated key in {@link #createKey} which is  only works if the user has just authenticated via fingerprint.
+
     private static byte[] tryEncrypt() throws BadPaddingException, IllegalBlockSizeException {
         return mCipher.doFinal(mClientSecret.getBytes());
     }
@@ -425,4 +385,38 @@ public class Fingerprint extends CordovaPlugin {
         mPluginResult = new PluginResult(PluginResult.Status.ERROR);
         return false;
     }
+}
+
+class FingerprintCallback extends FingerprintManager.AuthenticationCallback {
+
+  @Override
+  public void onAuthenticationError(int errorCode, CharSequence errString) {
+    super.onAuthenticationError(errorCode, errString);
+    Fingerprint.onAuthenticationError(errString.toString());
+  }
+
+  @Override
+  public void onAuthenticationHelp(int helpCode, CharSequence helpString) {
+    super.onAuthenticationHelp(helpCode, helpString);
+  }
+
+  @Override
+  public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
+    super.onAuthenticationSucceeded(result);
+    Fingerprint.onAuthenticatedByFingerprint();
+  }
+
+  @Override
+  public void onAuthenticationFailed() {
+    super.onAuthenticationFailed();
+    Fingerprint.onAuthenticationFailure();
+  }
+
+  public void doAuth(FingerprintManager manager, FingerprintManager.CryptoObject obj) {
+   CancellationSignal signal = new CancellationSignal();
+   try {
+    manager.authenticate(obj, signal, 0, this, null);
+   }
+   catch(SecurityException sce) {}
+ }
 }
