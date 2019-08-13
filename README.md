@@ -20,7 +20,7 @@ https://github.com/Siddharth-Stark/cordova-android-fingerprint-auth.git
 
 ### Install
 
-Install from NPM
+Install 
 
 ```
 cordova plugin add https://github.com/Siddharth-Stark/cordova-android-fingerprint-auth.git
